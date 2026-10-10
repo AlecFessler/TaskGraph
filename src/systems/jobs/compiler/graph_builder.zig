@@ -7,10 +7,11 @@ const BoundedArray = bounded_array.BoundedArray;
 const packed_slices = @import("packed_slices.zig");
 const PackedSlices = packed_slices.PackedSlices;
 
-const ResourceID = u32;
-const JobID = u32;
-const JobFn = *const fn ([*]const *anyopaque) anyerror!void;
+pub const ResourceID = u32;
+pub const JobID = u32;
+pub const JobFn = *const fn ([*]const *anyopaque) anyerror!void;
 
+pub const array_capacity = 1024;
 const no_job = std.math.maxInt(JobID);
 
 pub fn Resource(comptime T: type) type {
@@ -21,37 +22,33 @@ pub fn Resource(comptime T: type) type {
     };
 }
 
-const ResourceLayout = struct {
+pub const ResourceLayout = struct {
     size: u32,
     alignment: u32,
 };
 
-const JobParam = struct {
+pub const JobParam = struct {
     id: ResourceID,
     is_writable: bool,
 };
 
-const Edge = struct {
+pub const Edge = struct {
     producer: JobID,
     consumer: JobID,
 };
 
-const Carry = struct {
+pub const Carry = struct {
     from: ResourceID,
     to: ResourceID,
 };
 
 pub const JobGraphBuilder = struct {
-    const array_capacity = 1024;
-
     resource_producer: BoundedArray(JobID, array_capacity) = .{},
     resource_origin: BoundedArray(ResourceID, array_capacity) = .{},
     resource_layout: BoundedArray(ResourceLayout, array_capacity) = .{},
     resource_carry: BoundedArray(Carry, array_capacity) = .{},
-
     job_fn: BoundedArray(JobFn, array_capacity) = .{},
     job_params: PackedSlices(JobParam, array_capacity, array_capacity) = .{},
-
     edges: BoundedArray(Edge, array_capacity) = .{},
 
     pub fn declareResource(
@@ -65,6 +62,14 @@ pub const JobGraphBuilder = struct {
         return .{ .id = id, .builder = self };
     }
 };
+
+pub fn runGraphBuildFn(
+    comptime func: *const fn (comptime *JobGraphBuilder) anyerror!void,
+) !JobGraphBuilder {
+    var builder: JobGraphBuilder = .{};
+    try func(&builder);
+    return builder;
+}
 
 fn DeclareJobReturnType(comptime func: anytype) type {
     const fn_type = @TypeOf(func);
