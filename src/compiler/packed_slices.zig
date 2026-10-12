@@ -7,8 +7,7 @@ pub fn PackedSlices(
     comptime values_capacity: u32,
     comptime offsets_capacity: u32,
 ) type {
-    std.debug.assert(values_capacity >= 1);
-    std.debug.assert(offsets_capacity > 1);
+    std.debug.assert(offsets_capacity >= 1);
     return struct {
         values: [values_capacity]T = undefined,
         values_size: u32 = 0,

@@ -17,10 +17,6 @@ const packed_slices = @import("packed_slices.zig");
 const PackedSlices = packed_slices.PackedSlices;
 
 pub const JobGraphIR = struct {
-    resource_layout: BoundedArray(ResourceLayout, array_capacity) = .{},
-    resource_carry: BoundedArray(Carry, array_capacity) = .{},
-    job_fn: BoundedArray(JobFn, array_capacity) = .{},
-    job_params: PackedSlices(JobParam, array_capacity, array_capacity) = .{},
     roots: BoundedArray(JobID, array_capacity) = .{},
     initial_dependency_counters: BoundedArray(u32, array_capacity) = .{},
     dependents: PackedSlices(JobID, array_capacity, array_capacity) = .{},
@@ -94,18 +90,13 @@ pub fn compileJobGraphIR(comptime builder: *JobGraphBuilder) !JobGraphIR {
 
     // optimization pipeline runs here
 
-    ir.resource_layout = builder.resource_layout;
-    ir.resource_carry = builder.resource_carry;
-    ir.job_fn = builder.job_fn;
-    ir.job_params = builder.job_params;
-
     return ir;
 }
 
 test "compileJobGraphIR()" {
     const declareJob = graph_builder.declareJob;
     const declareResourceCarry = graph_builder.declareResourceCarry;
-    const runGraphBuildFn = graph_builder.runGraphBuildFn;
+    const invokeGraphBuildFn = graph_builder.invokeGraphBuildFn;
     comptime {
         const TestFnWrapper = struct {
             fn root(read_param: *const u32, write_param: *u32) !void {
@@ -143,7 +134,7 @@ test "compileJobGraphIR()" {
             }
         };
 
-        var builder = try runGraphBuildFn(TestFnWrapper.graphBuildFn);
+        var builder = try invokeGraphBuildFn(TestFnWrapper.graphBuildFn);
         const ir = try compileJobGraphIR(&builder);
 
         // derived dependents packed slices arrays have the expected sizes and elements
@@ -222,56 +213,6 @@ test "compileJobGraphIR()" {
             u32,
             &expected_dependency_counters_array,
             ir.initial_dependency_counters.elements[0..ir.initial_dependency_counters.size],
-        );
-
-        // copied resource_layout array has the expected size and elements
-        try expectEqual(
-            builder.resource_layout.size,
-            ir.resource_layout.size,
-        );
-        try expectEqualSlices(
-            ResourceLayout,
-            builder.resource_layout.elements[0..builder.resource_layout.size],
-            ir.resource_layout.elements[0..ir.resource_layout.size],
-        );
-        // copied resource_carry array has the expected size and elements
-        try expectEqual(
-            builder.resource_carry.size,
-            ir.resource_carry.size,
-        );
-        try expectEqualSlices(
-            Carry,
-            builder.resource_carry.elements[0..builder.resource_carry.size],
-            ir.resource_carry.elements[0..ir.resource_carry.size],
-        );
-        // copied job_fn array has the expected size and elements
-        try expectEqual(
-            builder.job_fn.size,
-            ir.job_fn.size,
-        );
-        try expectEqualSlices(
-            JobFn,
-            builder.job_fn.elements[0..builder.job_fn.size],
-            ir.job_fn.elements[0..ir.job_fn.size],
-        );
-        // copied job_params packed slices arrays have the expected sizes and elements
-        try expectEqual(
-            builder.job_params.values_size,
-            ir.job_params.values_size,
-        );
-        try expectEqualSlices(
-            JobParam,
-            builder.job_params.values[0..builder.job_params.values_size],
-            ir.job_params.values[0..ir.job_params.values_size],
-        );
-        try expectEqual(
-            builder.job_params.offsets_size,
-            ir.job_params.offsets_size,
-        );
-        try expectEqualSlices(
-            u32,
-            builder.job_params.offsets[0..builder.job_params.offsets_size],
-            ir.job_params.offsets[0..ir.job_params.offsets_size],
         );
     }
 }

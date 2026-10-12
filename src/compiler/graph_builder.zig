@@ -63,11 +63,11 @@ pub const JobGraphBuilder = struct {
     }
 };
 
-pub fn runGraphBuildFn(
-    comptime func: *const fn (comptime *JobGraphBuilder) anyerror!void,
+pub fn invokeGraphBuildFn(
+    comptime graphBuildFn: *const fn (comptime *JobGraphBuilder) anyerror!void,
 ) !JobGraphBuilder {
     var builder: JobGraphBuilder = .{};
-    try func(&builder);
+    try graphBuildFn(&builder);
     return builder;
 }
 
@@ -240,7 +240,7 @@ pub fn declareJob(
     return return_value;
 }
 
-pub fn declareResourceCarry(resource: anytype) !void {
+pub fn declareResourceCarry(comptime resource: anytype) !void {
     const builder: *JobGraphBuilder = resource.builder;
     const producer = builder.resource_producer.elements[resource.id];
     const resource_type_name = @typeName(@TypeOf(resource).resource_type);
