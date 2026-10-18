@@ -41,13 +41,12 @@ pub fn PackedSlices(
     };
 }
 
-test "PackedSlices" {
+test "PackedSlices initializes capacities, sizes, and the starting offset" {
     const array_capacity = 8;
     const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
-    var test_packed_slices: TestPackedSlices = .{};
-
-    var expected_values_size: u32 = 0;
-    var expected_offsets_size: u32 = 1;
+    const test_packed_slices: TestPackedSlices = .{};
+    const expected_values_size: u32 = 0;
+    const expected_offsets_size: u32 = 1;
 
     // initial state
     try expectEqual( // values.len should be array_capacity
@@ -70,10 +69,24 @@ test "PackedSlices" {
         0,
         test_packed_slices.offsets[0],
     );
+}
+
+test "subslice rejects access before any slice is ended" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
     try expectError( // subslice(0) before any endSlice() call returns the expected out of bounds error
         error.IndexOutOfBounds,
         test_packed_slices.subslice(0),
     );
+}
+
+test "append stores elements and increments values_size" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+    var expected_values_size: u32 = 0;
 
     // successive appends increment values_size and store the expected value in the correct index
     for (1..4) |i| {
@@ -87,6 +100,18 @@ test "PackedSlices" {
             i,
             test_packed_slices.values[expected_values_size - 1],
         );
+    }
+}
+
+test "endSlice records the boundary without changing values_size" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+    const expected_values_size: u32 = 3;
+    var expected_offsets_size: u32 = 1;
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
     }
 
     // endSlice appends values_size into offsets and increments offsets_size
@@ -108,6 +133,17 @@ test "PackedSlices" {
         expected_values_size,
         test_packed_slices.offsets[expected_offsets_size - 1],
     );
+}
+
+test "subslice returns the expected first slice" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    try test_packed_slices.endSlice();
 
     // subslice within bounds returns the expected subslice of values
     const subslice = try test_packed_slices.subslice(0);
@@ -121,11 +157,33 @@ test "PackedSlices" {
             elem,
         );
     }
+}
+
+test "subslice rejects an index beyond completed slices" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    try test_packed_slices.endSlice();
 
     try expectError( // index out of bounds returns expected error
         error.IndexOutOfBounds,
         test_packed_slices.subslice(1),
     );
+}
+
+test "append rejects a full values array without changing its size" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    try test_packed_slices.endSlice();
 
     // append out of bounds returns error
     for (0..5) |i| {
@@ -140,6 +198,17 @@ test "PackedSlices" {
         values_size_before_failed_append,
         test_packed_slices.values_size,
     );
+}
+
+test "endSlice rejects a full offsets array without changing its size" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    try test_packed_slices.endSlice();
 
     // endSlice out of bounds returns error
     for (0..6) |_| {
@@ -154,6 +223,23 @@ test "PackedSlices" {
         offsets_size_before_failed_endslice,
         test_packed_slices.offsets_size,
     );
+}
+
+test "subslice returns the expected subsequent slice" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    try test_packed_slices.endSlice();
+    for (0..5) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    for (0..6) |_| {
+        try test_packed_slices.endSlice();
+    }
 
     // multiple appends and end slices result in expected state and can take expected subslices
     const second_subslice = try test_packed_slices.subslice(1);
@@ -166,6 +252,23 @@ test "PackedSlices" {
             expected,
             elem,
         );
+    }
+}
+
+test "subslice returns an empty slice for repeated boundaries" {
+    const array_capacity = 8;
+    const TestPackedSlices = PackedSlices(u32, array_capacity, array_capacity);
+    var test_packed_slices: TestPackedSlices = .{};
+
+    for (1..4) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    try test_packed_slices.endSlice();
+    for (0..5) |i| {
+        try test_packed_slices.append(@intCast(i));
+    }
+    for (0..6) |_| {
+        try test_packed_slices.endSlice();
     }
 
     // subslices that should be empty have len == 0
