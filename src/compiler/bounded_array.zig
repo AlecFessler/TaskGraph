@@ -16,8 +16,6 @@ pub fn BoundedArray(comptime T: type, capacity: u32) type {
     };
 }
 
-// todo: combine these tests into a single test block
-
 test "array size initialized to zero" {
     const Array = BoundedArray(u32, 8);
     const array = Array{};
