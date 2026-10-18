@@ -93,48 +93,9 @@ pub fn compileJobGraphIR(comptime builder: *JobGraphBuilder) !JobGraphIR {
     return ir;
 }
 
-test "compileJobGraphIR()" {
-    const declareJob = graph_builder.declareJob;
-    const declareResourceCarry = graph_builder.declareResourceCarry;
-    const invokeGraphBuildFn = graph_builder.invokeGraphBuildFn;
+test "compileJobGraphIR packs same epoch dependents" {
     comptime {
-        const TestFnWrapper = struct {
-            fn root(read_param: *const u32, write_param: *u32) !void {
-                _ = read_param;
-                _ = write_param;
-            }
-
-            fn fanOut(read_param: *const u32, write_param: *u32) !void {
-                _ = read_param;
-                _ = write_param;
-            }
-
-            fn fanOutWithCarry(read_param0: *const u32, read_param1: *const u32, write_param: *u32) !void {
-                _ = read_param0;
-                _ = read_param1;
-                _ = write_param;
-            }
-
-            fn fanIn(read_param0: *const u32, read_param1: *const u32, write_param0: *u32, write_param1: *u32) !void {
-                _ = read_param0;
-                _ = read_param1;
-                _ = write_param0;
-                _ = write_param1;
-            }
-
-            fn graphBuildFn(comptime builder: *JobGraphBuilder) !void {
-                const resource0_v0 = try builder.declareResource(u32);
-                const resource0_v1 = try declareJob(root, .{ resource0_v0, resource0_v0 });
-                const resource0_v2 = try declareJob(fanOut, .{ resource0_v1, resource0_v1 });
-                const resource1_v0 = try builder.declareResource(u32);
-                const resource1_v1 = try declareJob(fanOutWithCarry, .{ resource0_v1, resource1_v0, resource1_v0 });
-                const resource0_v3, const resource1_v2 = try declareJob(fanIn, .{ resource0_v2, resource1_v1, resource0_v2, resource1_v1 });
-                try declareResourceCarry(resource0_v3);
-                try declareResourceCarry(resource1_v2);
-            }
-        };
-
-        var builder = try invokeGraphBuildFn(TestFnWrapper.graphBuildFn);
+        var builder = try graph_builder.invokeGraphBuildFn(TestFnWrapper.graphBuildFn);
         const ir = try compileJobGraphIR(&builder);
 
         // derived dependents packed slices arrays have the expected sizes and elements
@@ -160,6 +121,13 @@ test "compileJobGraphIR()" {
             &expected_dependents_offsets_array,
             ir.dependents.offsets[0..ir.dependents.offsets_size],
         );
+    }
+}
+
+test "compileJobGraphIR packs carry dependents" {
+    comptime {
+        var builder = try graph_builder.invokeGraphBuildFn(TestFnWrapper.graphBuildFn);
+        const ir = try compileJobGraphIR(&builder);
 
         // derived carry dependents packed slices arrays have the expected sizes and elements
         const expected_carry_dependents_values_size = 2;
@@ -184,6 +152,13 @@ test "compileJobGraphIR()" {
             &expected_carry_dependents_offsets_array,
             ir.carry_dependents.offsets[0..ir.carry_dependents.offsets_size],
         );
+    }
+}
+
+test "compileJobGraphIR identifies graph roots" {
+    comptime {
+        var builder = try graph_builder.invokeGraphBuildFn(TestFnWrapper.graphBuildFn);
+        const ir = try compileJobGraphIR(&builder);
 
         // roots array has expected size and elements
         const expected_roots_size = 1;
@@ -197,6 +172,13 @@ test "compileJobGraphIR()" {
             &expected_roots_array,
             ir.roots.elements[0..ir.roots.size],
         );
+    }
+}
+
+test "compileJobGraphIR initializes dependency counters" {
+    comptime {
+        var builder = try graph_builder.invokeGraphBuildFn(TestFnWrapper.graphBuildFn);
+        const ir = try compileJobGraphIR(&builder);
 
         // initial dependency counters has expected size and elements
         const expected_dependency_counters_size = 4;
@@ -216,3 +198,39 @@ test "compileJobGraphIR()" {
         );
     }
 }
+
+const TestFnWrapper = struct {
+    fn root(read_param: *const u32, write_param: *u32) !void {
+        _ = read_param;
+        _ = write_param;
+    }
+
+    fn fanOut(read_param: *const u32, write_param: *u32) !void {
+        _ = read_param;
+        _ = write_param;
+    }
+
+    fn fanOutWithCarry(read_param0: *const u32, read_param1: *const u32, write_param: *u32) !void {
+        _ = read_param0;
+        _ = read_param1;
+        _ = write_param;
+    }
+
+    fn fanIn(read_param0: *const u32, read_param1: *const u32, write_param0: *u32, write_param1: *u32) !void {
+        _ = read_param0;
+        _ = read_param1;
+        _ = write_param0;
+        _ = write_param1;
+    }
+
+    fn graphBuildFn(comptime builder: *JobGraphBuilder) !void {
+        const resource0_v0 = try builder.declareResource(u32);
+        const resource0_v1 = try graph_builder.declareJob(root, .{ resource0_v0, resource0_v0 });
+        const resource0_v2 = try graph_builder.declareJob(fanOut, .{ resource0_v1, resource0_v1 });
+        const resource1_v0 = try builder.declareResource(u32);
+        const resource1_v1 = try graph_builder.declareJob(fanOutWithCarry, .{ resource0_v1, resource1_v0, resource1_v0 });
+        const resource0_v3, const resource1_v2 = try graph_builder.declareJob(fanIn, .{ resource0_v2, resource1_v1, resource0_v2, resource1_v1 });
+        try graph_builder.declareResourceCarry(resource0_v3);
+        try graph_builder.declareResourceCarry(resource1_v2);
+    }
+};
