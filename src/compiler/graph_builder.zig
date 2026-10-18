@@ -263,24 +263,89 @@ pub fn declareResourceCarry(comptime resource: anytype) !void {
     try builder.resource_carry.append(.{ .from = resource.id, .to = origin });
 }
 
-test "declareResource()" {
+test "declareResource assigns incremental resource IDs" {
     comptime { // declareResource() runs at compile time
         var builder = JobGraphBuilder{};
+        const resource1_type = u32;
+        const resource1 = try builder.declareResource(resource1_type);
+        const resource2_type = i32;
+        const resource2 = try builder.declareResource(resource2_type);
+        const resource3_type = u64;
+        const resource3 = try builder.declareResource(resource3_type);
 
+        // resources were assigned incremental ids
+        try expectEqual(0, resource1.id);
+        try expectEqual(1, resource2.id);
+        try expectEqual(2, resource3.id);
+    }
+}
+
+test "declareResource returns resources with the declared types" {
+    comptime { // declareResource() runs at compile time
+        var builder = JobGraphBuilder{};
+        const resource1_type = u32;
+        const resource1 = try builder.declareResource(resource1_type);
+        const resource2_type = i32;
+        const resource2 = try builder.declareResource(resource2_type);
+        const resource3_type = u64;
+        const resource3 = try builder.declareResource(resource3_type);
+
+        // all Resource specializations have the correct type
+        try expectEqual(resource1_type, @TypeOf(resource1).resource_type);
+        try expectEqual(resource2_type, @TypeOf(resource2).resource_type);
+        try expectEqual(resource3_type, @TypeOf(resource3).resource_type);
+    }
+}
+
+test "declareResource initializes producers to no_job" {
+    comptime { // declareResource() runs at compile time
+        var builder = JobGraphBuilder{};
+        const resource1_type = u32;
+        const resource1 = try builder.declareResource(resource1_type);
+        const resource2_type = i32;
+        const resource2 = try builder.declareResource(resource2_type);
+        const resource3_type = u64;
+        const resource3 = try builder.declareResource(resource3_type);
+
+        // all builder.resource_producer entries use the no_job sentinel
+        try expectEqual(no_job, builder.resource_producer.elements[resource1.id]);
+        try expectEqual(no_job, builder.resource_producer.elements[resource2.id]);
+        try expectEqual(no_job, builder.resource_producer.elements[resource3.id]);
+    }
+}
+
+test "declareResource initializes origins to resource IDs" {
+    comptime { // declareResource() runs at compile time
+        var builder = JobGraphBuilder{};
+        const resource1_type = u32;
+        const resource1 = try builder.declareResource(resource1_type);
+        const resource2_type = i32;
+        const resource2 = try builder.declareResource(resource2_type);
+        const resource3_type = u64;
+        const resource3 = try builder.declareResource(resource3_type);
+
+        // all builder.resource_origin entries match the expected id
+        try expectEqual(resource1.id, builder.resource_origin.elements[resource1.id]);
+        try expectEqual(resource2.id, builder.resource_origin.elements[resource2.id]);
+        try expectEqual(resource3.id, builder.resource_origin.elements[resource3.id]);
+    }
+}
+
+test "declareResource records resource size and alignment" {
+    comptime { // declareResource() runs at compile time
+        var builder = JobGraphBuilder{};
         const resource1_type = u32;
         const resource1 = try builder.declareResource(resource1_type);
         const layout1 = ResourceLayout{
             .size = @sizeOf(resource1_type),
             .alignment = @alignOf(resource1_type),
         };
-
         const resource2_type = i32;
         const resource2 = try builder.declareResource(resource2_type);
         const layout2 = ResourceLayout{
             .size = @sizeOf(resource2_type),
             .alignment = @alignOf(resource2_type),
         };
-
         const resource3_type = u64;
         const resource3 = try builder.declareResource(resource3_type);
         const layout3 = ResourceLayout{
@@ -288,35 +353,42 @@ test "declareResource()" {
             .alignment = @alignOf(resource3_type),
         };
 
-        // resources were assigned incremental ids
-        try expectEqual(0, resource1.id);
-        try expectEqual(1, resource2.id);
-        try expectEqual(2, resource3.id);
-
-        // all Resource specializations have the correct type
-        try expectEqual(resource1_type, @TypeOf(resource1).resource_type);
-        try expectEqual(resource2_type, @TypeOf(resource2).resource_type);
-        try expectEqual(resource3_type, @TypeOf(resource3).resource_type);
-
-        // all builder.resource_producer entries use the no_job sentinel
-        try expectEqual(no_job, builder.resource_producer.elements[resource1.id]);
-        try expectEqual(no_job, builder.resource_producer.elements[resource2.id]);
-        try expectEqual(no_job, builder.resource_producer.elements[resource3.id]);
-
-        // all builder.resource_origin entries match the expected id
-        try expectEqual(resource1.id, builder.resource_origin.elements[resource1.id]);
-        try expectEqual(resource2.id, builder.resource_origin.elements[resource2.id]);
-        try expectEqual(resource3.id, builder.resource_origin.elements[resource3.id]);
-
         // all builder.resource_layout entries match the expected layout given the type specialization
         try expectEqual(layout1, builder.resource_layout.elements[resource1.id]);
         try expectEqual(layout2, builder.resource_layout.elements[resource2.id]);
         try expectEqual(layout3, builder.resource_layout.elements[resource3.id]);
+    }
+}
+
+test "declareResource appends entries to all resource tables" {
+    comptime { // declareResource() runs at compile time
+        var builder = JobGraphBuilder{};
+        const resource1_type = u32;
+        const resource1 = try builder.declareResource(resource1_type);
+        _ = resource1;
+        const resource2_type = i32;
+        const resource2 = try builder.declareResource(resource2_type);
+        _ = resource2;
+        const resource3_type = u64;
+        const resource3 = try builder.declareResource(resource3_type);
+        _ = resource3;
 
         // all builder.resource_* arrays have the expected size
         try expectEqual(3, builder.resource_producer.size);
         try expectEqual(3, builder.resource_origin.size);
         try expectEqual(3, builder.resource_layout.size);
+    }
+}
+
+test "declareResource associates resources with their builder" {
+    comptime { // declareResource() runs at compile time
+        var builder = JobGraphBuilder{};
+        const resource1_type = u32;
+        const resource1 = try builder.declareResource(resource1_type);
+        const resource2_type = i32;
+        const resource2 = try builder.declareResource(resource2_type);
+        const resource3_type = u64;
+        const resource3 = try builder.declareResource(resource3_type);
 
         // all resources have the same correct builder pointer assignment
         try expect(resource1.builder == &builder and
@@ -326,34 +398,8 @@ test "declareResource()" {
     }
 }
 
-test "declareJob()" {
+test "declareJob registers callable wrappers with correct argument ordering" {
     comptime { // declareJob() runs at compile time
-        const TestFnWrapper = struct {
-            fn testOneRead(read_param: *const u32) !void {
-                if (read_param.* != 0xABC) {
-                    return error.ReadUnexpectedValue;
-                }
-            }
-            fn testTwoWrites(write_param0: *u64, write_param1: *i32) !void {
-                write_param0.* = 123;
-                write_param1.* = 456;
-            }
-            fn testOneWrite(write_param: *u32) !void {
-                write_param.* = 123;
-            }
-            fn testOneReadOneWrite(read_param: *const u32, write_param: *u32) !void {
-                if (read_param.* != 123) {
-                    return error.ReadUnexpectedValue;
-                }
-                write_param.* = 456;
-            }
-            fn testTwoReads(read_param0: *const u32, read_param1: *const u32) !void {
-                if (read_param0.* != 456 or read_param1.* != 456) {
-                    return error.ReadUnexpectedValue;
-                }
-            }
-        };
-
         var builder = JobGraphBuilder{};
         var job_id = 0; // increment job id with each declared job
 
@@ -363,8 +409,107 @@ test "declareJob()" {
         const test_one_read_expected_job_id = job_id;
         var test_one_read_value: u32 = 0xABC;
         const test_one_read_args: [1]*anyopaque = .{@ptrCast(&test_one_read_value)};
+
         // fn pointer exists in table indexed by expected job id
         try builder.job_fn.elements[test_one_read_expected_job_id](&test_one_read_args);
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+        const test_two_writes_expected_job_id = job_id;
+        var test_two_writes_initial_value0: u64 = 0;
+        var test_two_writes_initial_value1: i32 = 0;
+        const test_two_writes_args: [2]*anyopaque = .{
+            @ptrCast(&test_two_writes_initial_value0),
+            @ptrCast(&test_two_writes_initial_value1),
+        };
+
+        // fn pointer exists in the table indexed by expected job id and wrote the two expected values
+        try builder.job_fn.elements[test_two_writes_expected_job_id](&test_two_writes_args);
+        try expectEqual(123, test_two_writes_initial_value0);
+        try expectEqual(456, test_two_writes_initial_value1);
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        const test_one_write_expected_job_id = job_id;
+        var test_one_write_initial_value: u32 = 0;
+        const test_one_write_args: [1]*anyopaque = .{@ptrCast(&test_one_write_initial_value)};
+
+        // fn pointer exists in the table indexed by expected job id and wrote the expected value
+        try builder.job_fn.elements[test_one_write_expected_job_id](&test_one_write_args);
+        try expectEqual(123, test_one_write_initial_value);
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        const test_one_read_one_write_fn0_expected_job_id = job_id;
+        var test_one_read_one_write_fn0_initial_value: u32 = 0;
+        const test_one_read_one_write_fn0_args: [2]*anyopaque = .{
+            @ptrCast(&test_one_write_initial_value), // read the last job's write
+            @ptrCast(&test_one_read_one_write_fn0_initial_value),
+        };
+
+        // fn pointer exists in the table indexed by expected job id and wrote the expected value
+        try builder.job_fn.elements[test_one_read_one_write_fn0_expected_job_id](&test_one_read_one_write_fn0_args);
+        try expectEqual(456, test_one_read_one_write_fn0_initial_value);
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+        const test_one_read_one_write_fn1_expected_job_id = job_id;
+        var test_one_read_one_write_fn1_initial_value: u32 = 0;
+        const test_one_read_one_write_fn1_args: [2]*anyopaque = .{
+            @ptrCast(&test_one_write_initial_value), // read the job before the last's write
+            @ptrCast(&test_one_read_one_write_fn1_initial_value),
+        };
+
+        // fn pointer exists in the table indexed by expected job id and wrote the expected value
+        try builder.job_fn.elements[test_one_read_one_write_fn1_expected_job_id](&test_one_read_one_write_fn1_args);
+        try expectEqual(456, test_one_read_one_write_fn1_initial_value);
+
+        job_id += 1;
+        try declareJob(
+            TestFnWrapper.testTwoReads,
+            .{ resource_test_one_read_one_write_fn0_out, resource_test_one_read_one_write_fn1_out },
+        );
+        const test_two_reads_expected_job_id = job_id;
+        const test_two_reads_args: [2]*anyopaque = .{
+            @ptrCast(&test_one_read_one_write_fn0_initial_value),
+            @ptrCast(&test_one_read_one_write_fn1_initial_value),
+        };
+
+        // fn pointer exists in the table indexed by expected job id
+        try builder.job_fn.elements[test_two_reads_expected_job_id](&test_two_reads_args);
+    }
+}
+
+test "declareJob records the parameter slice for one read" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        const job_id = 0;
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+        const test_one_read_expected_job_id = job_id;
         const test_one_read_params_subslice = try builder.job_params.subslice(test_one_read_expected_job_id);
         try expectEqual( // the job params subslice indexed by the expected job id contains 1 value
             1,
@@ -374,10 +519,17 @@ test "declareJob()" {
             JobParam{ .id = resource_test_one_read.id, .is_writable = false },
             test_one_read_params_subslice[0],
         );
-        try expectEqual( // no edge was created because the resource didn't originate from a prior write
-            0,
-            builder.edges.size,
-        );
+    }
+}
+
+test "declareJob records the parameter slice for two writes" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
 
         job_id += 1;
 
@@ -389,16 +541,6 @@ test "declareJob()" {
             .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
         );
         const test_two_writes_expected_job_id = job_id;
-        var test_two_writes_initial_value0: u64 = 0;
-        var test_two_writes_initial_value1: i32 = 0;
-        const test_two_writes_args: [2]*anyopaque = .{
-            @ptrCast(&test_two_writes_initial_value0),
-            @ptrCast(&test_two_writes_initial_value1),
-        };
-        // fn pointer exists in the table indexed by expected job id and wrote the two expected values
-        try builder.job_fn.elements[test_two_writes_expected_job_id](&test_two_writes_args);
-        try expectEqual(123, test_two_writes_initial_value0);
-        try expectEqual(456, test_two_writes_initial_value1);
         const test_two_writes_params_subslice = try builder.job_params.subslice(test_two_writes_expected_job_id);
         try expectEqual( // the job params subslice indexed by the expected job id contains 2 values
             2,
@@ -412,34 +554,29 @@ test "declareJob()" {
             JobParam{ .id = resource_test_two_writes_out1.id, .is_writable = true },
             test_two_writes_params_subslice[1],
         );
-        try expectEqual( // the first expected resource producer entry was appended
-            test_two_writes_expected_job_id,
-            builder.resource_producer.elements[resource_test_two_writes_out0.id],
+    }
+}
+
+test "declareJob records the parameter slice for one write" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
         );
-        try expectEqual( // the second expected resource producer entry was appended
-            test_two_writes_expected_job_id,
-            builder.resource_producer.elements[resource_test_two_writes_out1.id],
-        );
-        try expectEqual( // the first expected resource layout entry was appended
-            builder.resource_layout.elements[resource_test_two_writes_in0.id],
-            builder.resource_layout.elements[resource_test_two_writes_out0.id],
-        );
-        try expectEqual( // the second expected resource layout entry was appended
-            builder.resource_layout.elements[resource_test_two_writes_in1.id],
-            builder.resource_layout.elements[resource_test_two_writes_out1.id],
-        );
-        try expectEqual( // the first expected resource origin entry was appended
-            resource_test_two_writes_in0.id,
-            builder.resource_origin.elements[resource_test_two_writes_out0.id],
-        );
-        try expectEqual( // the second expected resource origin entry was appended
-            resource_test_two_writes_in1.id,
-            builder.resource_origin.elements[resource_test_two_writes_out1.id],
-        );
-        try expectEqual( // no edge was created because the resources aren't reads to prior writes
-            0,
-            builder.edges.size,
-        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
 
         job_id += 1;
 
@@ -450,11 +587,6 @@ test "declareJob()" {
             .{resource_test_one_write_in},
         );
         const test_one_write_expected_job_id = job_id;
-        var test_one_write_initial_value: u32 = 0;
-        const test_one_write_args: [1]*anyopaque = .{@ptrCast(&test_one_write_initial_value)};
-        // fn pointer exists in the table indexed by expected job id and wrote the expected value
-        try builder.job_fn.elements[test_one_write_expected_job_id](&test_one_write_args);
-        try expectEqual(123, test_one_write_initial_value);
         const test_one_write_params_subslice = try builder.job_params.subslice(test_one_write_expected_job_id);
         try expectEqual( // the job params subslice indexed by the expected job id contains 1 value
             1,
@@ -464,38 +596,45 @@ test "declareJob()" {
             JobParam{ .id = resource_test_one_write_out.id, .is_writable = true },
             test_one_write_params_subslice[0],
         );
-        try expectEqual( // the expected resource producer entry was appended
-            test_one_write_expected_job_id,
-            builder.resource_producer.elements[resource_test_one_write_out.id],
-        );
-        try expectEqual( // the expected resource layout entry was appended
-            builder.resource_layout.elements[resource_test_one_write_in.id],
-            builder.resource_layout.elements[resource_test_one_write_out.id],
-        );
-        try expectEqual( // the expected resource origin entry was appended
-            resource_test_one_write_in.id,
-            builder.resource_origin.elements[resource_test_one_write_out.id],
-        );
-        try expectEqual( // no edge was created because the resource didn't originate from a prior write
-            0,
-            builder.edges.size,
-        );
+    }
+}
+
+test "declareJob records parameter slices for mixed reads and writes" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
 
         job_id += 1;
 
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+
+        job_id += 1;
         const resource_test_one_read_one_write_fn0_out = try declareJob(
             TestFnWrapper.testOneReadOneWrite,
             .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
         );
         const test_one_read_one_write_fn0_expected_job_id = job_id;
-        var test_one_read_one_write_fn0_initial_value: u32 = 0;
-        const test_one_read_one_write_fn0_args: [2]*anyopaque = .{
-            @ptrCast(&test_one_write_initial_value), // read the last job's write
-            @ptrCast(&test_one_read_one_write_fn0_initial_value),
-        };
-        // fn pointer exists in the table indexed by expected job id and wrote the expected value
-        try builder.job_fn.elements[test_one_read_one_write_fn0_expected_job_id](&test_one_read_one_write_fn0_args);
-        try expectEqual(456, test_one_read_one_write_fn0_initial_value);
         const test_one_read_one_write_fn0_params_subslice = try builder.job_params.subslice(test_one_read_one_write_fn0_expected_job_id);
         try expectEqual( // the job params subslice indexed by the expected job id contains 2 values
             2,
@@ -509,42 +648,13 @@ test "declareJob()" {
             JobParam{ .id = resource_test_one_read_one_write_fn0_out.id, .is_writable = true },
             test_one_read_one_write_fn0_params_subslice[1],
         );
-        try expectEqual( // the expected resource producer entry was appended
-            test_one_read_one_write_fn0_expected_job_id,
-            builder.resource_producer.elements[resource_test_one_read_one_write_fn0_out.id],
-        );
-        try expectEqual( // the expected resource layout entry was appended
-            builder.resource_layout.elements[resource_test_one_write_in.id],
-            builder.resource_layout.elements[resource_test_one_read_one_write_fn0_out.id],
-        );
-        try expectEqual( // the expected resource origin entry was appended
-            resource_test_one_write_in.id,
-            builder.resource_origin.elements[resource_test_one_read_one_write_fn0_out.id],
-        );
-        try expectEqual( // one edge was created because of the read from a prior read
-            1,
-            builder.edges.size,
-        );
-        try expectEqual( // the first edge has the expected producer and consumer
-            Edge{ .producer = test_one_write_expected_job_id, .consumer = test_one_read_one_write_fn0_expected_job_id },
-            builder.edges.elements[0],
-        );
 
         job_id += 1;
-
         const resource_test_one_read_one_write_fn1_out = try declareJob(
             TestFnWrapper.testOneReadOneWrite,
             .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
         );
         const test_one_read_one_write_fn1_expected_job_id = job_id;
-        var test_one_read_one_write_fn1_initial_value: u32 = 0;
-        const test_one_read_one_write_fn1_args: [2]*anyopaque = .{
-            @ptrCast(&test_one_write_initial_value), // read the job before the last's write
-            @ptrCast(&test_one_read_one_write_fn1_initial_value),
-        };
-        // fn pointer exists in the table indexed by expected job id and wrote the expected value
-        try builder.job_fn.elements[test_one_read_one_write_fn1_expected_job_id](&test_one_read_one_write_fn1_args);
-        try expectEqual(456, test_one_read_one_write_fn1_initial_value);
         const test_one_read_one_write_fn1_params_subslice = try builder.job_params.subslice(test_one_read_one_write_fn1_expected_job_id);
         try expectEqual( // the job params subslice indexed by the expected job id contains 2 values
             2,
@@ -558,40 +668,57 @@ test "declareJob()" {
             JobParam{ .id = resource_test_one_read_one_write_fn1_out.id, .is_writable = true },
             test_one_read_one_write_fn1_params_subslice[1],
         );
-        try expectEqual( // the expected resource producer entry was appended
-            test_one_read_one_write_fn1_expected_job_id,
-            builder.resource_producer.elements[resource_test_one_read_one_write_fn1_out.id],
-        );
-        try expectEqual( // the expected resource layout entry was appended
-            builder.resource_layout.elements[resource_test_one_write_in.id],
-            builder.resource_layout.elements[resource_test_one_read_one_write_fn1_out.id],
-        );
-        try expectEqual( // the expected resource origin entry was appended
-            resource_test_one_write_in.id,
-            builder.resource_origin.elements[resource_test_one_read_one_write_fn1_out.id],
-        );
-        try expectEqual( // a second edge was created because of the read from a prior read
-            2,
-            builder.edges.size,
-        );
-        try expectEqual( // the second edge has the expected producer and consumer
-            Edge{ .producer = test_one_write_expected_job_id, .consumer = test_one_read_one_write_fn1_expected_job_id },
-            builder.edges.elements[1],
-        );
+    }
+}
+
+test "declareJob records the parameter slice for two reads" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
 
         job_id += 1;
 
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+
+        job_id += 1;
         try declareJob(
             TestFnWrapper.testTwoReads,
             .{ resource_test_one_read_one_write_fn0_out, resource_test_one_read_one_write_fn1_out },
         );
         const test_two_reads_expected_job_id = job_id;
-        const test_two_reads_args: [2]*anyopaque = .{
-            @ptrCast(&test_one_read_one_write_fn0_initial_value),
-            @ptrCast(&test_one_read_one_write_fn1_initial_value),
-        };
-        // fn pointer exists in the table indexed by expected job id
-        try builder.job_fn.elements[test_two_reads_expected_job_id](&test_two_reads_args);
         const test_two_reads_params_subslice = try builder.job_params.subslice(test_two_reads_expected_job_id);
         try expectEqual( // the job params subslice indexed by the expected job id contains 2 values
             2,
@@ -605,6 +732,411 @@ test "declareJob()" {
             JobParam{ .id = resource_test_one_read_one_write_fn1_out.id, .is_writable = false },
             test_two_reads_params_subslice[1],
         );
+    }
+}
+
+test "declareJob records producers for written resource versions" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        const test_two_writes_expected_job_id = job_id;
+        try expectEqual( // the first expected resource producer entry was appended
+            test_two_writes_expected_job_id,
+            builder.resource_producer.elements[resource_test_two_writes_out0.id],
+        );
+        try expectEqual( // the second expected resource producer entry was appended
+            test_two_writes_expected_job_id,
+            builder.resource_producer.elements[resource_test_two_writes_out1.id],
+        );
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        const test_one_write_expected_job_id = job_id;
+        try expectEqual( // the expected resource producer entry was appended
+            test_one_write_expected_job_id,
+            builder.resource_producer.elements[resource_test_one_write_out.id],
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        const test_one_read_one_write_fn0_expected_job_id = job_id;
+        try expectEqual( // the expected resource producer entry was appended
+            test_one_read_one_write_fn0_expected_job_id,
+            builder.resource_producer.elements[resource_test_one_read_one_write_fn0_out.id],
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+        const test_one_read_one_write_fn1_expected_job_id = job_id;
+        try expectEqual( // the expected resource producer entry was appended
+            test_one_read_one_write_fn1_expected_job_id,
+            builder.resource_producer.elements[resource_test_one_read_one_write_fn1_out.id],
+        );
+    }
+}
+
+test "declareJob preserves layouts for written resource versions" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        try expectEqual( // the first expected resource layout entry was appended
+            builder.resource_layout.elements[resource_test_two_writes_in0.id],
+            builder.resource_layout.elements[resource_test_two_writes_out0.id],
+        );
+        try expectEqual( // the second expected resource layout entry was appended
+            builder.resource_layout.elements[resource_test_two_writes_in1.id],
+            builder.resource_layout.elements[resource_test_two_writes_out1.id],
+        );
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        try expectEqual( // the expected resource layout entry was appended
+            builder.resource_layout.elements[resource_test_one_write_in.id],
+            builder.resource_layout.elements[resource_test_one_write_out.id],
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        try expectEqual( // the expected resource layout entry was appended
+            builder.resource_layout.elements[resource_test_one_write_in.id],
+            builder.resource_layout.elements[resource_test_one_read_one_write_fn0_out.id],
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+        try expectEqual( // the expected resource layout entry was appended
+            builder.resource_layout.elements[resource_test_one_write_in.id],
+            builder.resource_layout.elements[resource_test_one_read_one_write_fn1_out.id],
+        );
+    }
+}
+
+test "declareJob preserves origins for written resource versions" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        try expectEqual( // the first expected resource origin entry was appended
+            resource_test_two_writes_in0.id,
+            builder.resource_origin.elements[resource_test_two_writes_out0.id],
+        );
+        try expectEqual( // the second expected resource origin entry was appended
+            resource_test_two_writes_in1.id,
+            builder.resource_origin.elements[resource_test_two_writes_out1.id],
+        );
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        try expectEqual( // the expected resource origin entry was appended
+            resource_test_one_write_in.id,
+            builder.resource_origin.elements[resource_test_one_write_out.id],
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        try expectEqual( // the expected resource origin entry was appended
+            resource_test_one_write_in.id,
+            builder.resource_origin.elements[resource_test_one_read_one_write_fn0_out.id],
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+        try expectEqual( // the expected resource origin entry was appended
+            resource_test_one_write_in.id,
+            builder.resource_origin.elements[resource_test_one_read_one_write_fn1_out.id],
+        );
+    }
+}
+
+test "declareJob creates no dependency for reads of initial resources" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+
+        // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+        try expectEqual( // no edge was created because the resource didn't originate from a prior write
+            0,
+            builder.edges.size,
+        );
+    }
+}
+
+test "declareJob creates no dependencies for write-only jobs" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+        try expectEqual( // no edge was created because the resources aren't reads to prior writes
+            0,
+            builder.edges.size,
+        );
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        _ = resource_test_one_write_out;
+        try expectEqual( // no edge was created because the resource didn't originate from a prior write
+            0,
+            builder.edges.size,
+        );
+    }
+}
+
+test "declareJob creates the first diamond branch dependency" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        const test_one_write_expected_job_id = job_id;
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        _ = resource_test_one_read_one_write_fn0_out;
+        const test_one_read_one_write_fn0_expected_job_id = job_id;
+        try expectEqual( // one edge was created because of the read from a prior read
+            1,
+            builder.edges.size,
+        );
+        try expectEqual( // the first edge has the expected producer and consumer
+            Edge{ .producer = test_one_write_expected_job_id, .consumer = test_one_read_one_write_fn0_expected_job_id },
+            builder.edges.elements[0],
+        );
+    }
+}
+
+test "declareJob creates the second diamond branch dependency" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+        const test_one_write_expected_job_id = job_id;
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        _ = resource_test_one_read_one_write_fn0_out;
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+        _ = resource_test_one_read_one_write_fn1_out;
+        const test_one_read_one_write_fn1_expected_job_id = job_id;
+        try expectEqual( // a second edge was created because of the read from a prior read
+            2,
+            builder.edges.size,
+        );
+        try expectEqual( // the second edge has the expected producer and consumer
+            Edge{ .producer = test_one_write_expected_job_id, .consumer = test_one_read_one_write_fn1_expected_job_id },
+            builder.edges.elements[1],
+        );
+    }
+}
+
+test "declareJob creates diamond fan in dependencies" {
+    comptime { // declareJob() runs at compile time
+        var builder = JobGraphBuilder{};
+        var job_id = 0; // increment job id with each declared job
+
+        // test fn with one read
+        const resource_test_one_read = try builder.declareResource(u32);
+        try declareJob(TestFnWrapper.testOneRead, .{resource_test_one_read});
+
+        job_id += 1;
+
+        // test fn with two writes
+        const resource_test_two_writes_in0 = try builder.declareResource(u64);
+        const resource_test_two_writes_in1 = try builder.declareResource(i32);
+        const resource_test_two_writes_out0, const resource_test_two_writes_out1 = try declareJob(
+            TestFnWrapper.testTwoWrites,
+            .{ resource_test_two_writes_in0, resource_test_two_writes_in1 },
+        );
+        _ = resource_test_two_writes_out0;
+        _ = resource_test_two_writes_out1;
+
+        job_id += 1;
+
+        // test a diamond subgraph starting with one write, then fanning out to 2x one read one write, then fanning in to two reads
+        const resource_test_one_write_in = try builder.declareResource(u32);
+        const resource_test_one_write_out = try declareJob(
+            TestFnWrapper.testOneWrite,
+            .{resource_test_one_write_in},
+        );
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn0_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the last job's write, and get a successor resource to write to
+        );
+        const test_one_read_one_write_fn0_expected_job_id = job_id;
+
+        job_id += 1;
+        const resource_test_one_read_one_write_fn1_out = try declareJob(
+            TestFnWrapper.testOneReadOneWrite,
+            .{ resource_test_one_write_out, resource_test_one_write_out }, // read the job before the last's write, and get a different successor resource to write to
+        );
+        const test_one_read_one_write_fn1_expected_job_id = job_id;
+
+        job_id += 1;
+        try declareJob(
+            TestFnWrapper.testTwoReads,
+            .{ resource_test_one_read_one_write_fn0_out, resource_test_one_read_one_write_fn1_out },
+        );
+        const test_two_reads_expected_job_id = job_id;
         try expectEqual( // two more edges were created because of the two reads from different resource versions
             4,
             builder.edges.size,
@@ -620,14 +1152,8 @@ test "declareJob()" {
     }
 }
 
-test "declareResourceCarry()" {
+test "declareResourceCarry appends a carry from a produced version to its origin" {
     comptime { // declareResourceCarry runs at compile time
-        const TestFnWrapper = struct {
-            fn testFn(read_param: *const u32, write_param: *u32) !void {
-                _ = read_param;
-                _ = write_param;
-            }
-        };
         var builder = JobGraphBuilder{};
         const resource0 = try builder.declareResource(u32);
         const resource1 = try declareJob(
@@ -649,3 +1175,34 @@ test "declareResourceCarry()" {
         );
     }
 }
+
+const TestFnWrapper = struct {
+    fn testFn(read_param: *const u32, write_param: *u32) !void {
+        _ = read_param;
+        _ = write_param;
+    }
+
+    fn testOneRead(read_param: *const u32) !void {
+        if (read_param.* != 0xABC) {
+            return error.ReadUnexpectedValue;
+        }
+    }
+    fn testTwoWrites(write_param0: *u64, write_param1: *i32) !void {
+        write_param0.* = 123;
+        write_param1.* = 456;
+    }
+    fn testOneWrite(write_param: *u32) !void {
+        write_param.* = 123;
+    }
+    fn testOneReadOneWrite(read_param: *const u32, write_param: *u32) !void {
+        if (read_param.* != 123) {
+            return error.ReadUnexpectedValue;
+        }
+        write_param.* = 456;
+    }
+    fn testTwoReads(read_param0: *const u32, read_param1: *const u32) !void {
+        if (read_param0.* != 456 or read_param1.* != 456) {
+            return error.ReadUnexpectedValue;
+        }
+    }
+};
