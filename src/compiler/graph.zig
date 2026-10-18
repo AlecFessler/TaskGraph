@@ -116,76 +116,23 @@ pub fn JobGraph(
     };
 }
 
-test "JobGraph()" {
-    const declareJob = graph_builder.declareJob;
-    const declareResourceCarry = graph_builder.declareResourceCarry;
-
-    const TestFnWrapper = struct {
-        fn root(read_param: *const u32, write_param: *u32) !void {
-            _ = read_param;
-            _ = write_param;
-        }
-
-        fn fanOut(read_param: *const u32, write_param: *u32) !void {
-            _ = read_param;
-            _ = write_param;
-        }
-
-        fn fanOutWithCarry(read_param0: *const u32, read_param1: *const u64, write_param: *u64) !void {
-            _ = read_param0;
-            _ = read_param1;
-            _ = write_param;
-        }
-
-        fn fanIn(read_param0: *const u32, read_param1: *const u64, write_param0: *u32, write_param1: *u64) !void {
-            _ = read_param0;
-            _ = read_param1;
-            _ = write_param0;
-            _ = write_param1;
-        }
-
-        fn graphBuildFn(comptime builder: *JobGraphBuilder) !void {
-            const resource0_v0 = try builder.declareResource(u32);
-            const resource0_v1 = try declareJob(root, .{ resource0_v0, resource0_v0 });
-            const resource0_v2 = try declareJob(fanOut, .{ resource0_v1, resource0_v1 });
-            const resource1_v0 = try builder.declareResource(u64);
-            const resource1_v1 = try declareJob(fanOutWithCarry, .{ resource0_v1, resource1_v0, resource1_v0 });
-            const resource0_v3, const resource1_v2 = try declareJob(fanIn, .{ resource0_v2, resource1_v1, resource0_v2, resource1_v1 });
-            try declareResourceCarry(resource0_v3);
-            try declareResourceCarry(resource1_v2);
-        }
-    };
-
+test "JobGraph allocates the expected resource buffer size" {
     var job_graph: JobGraph(TestFnWrapper.graphBuildFn) = .{};
     try job_graph.init(std.testing.allocator);
     defer job_graph.deinit();
-
-    const Layout = struct {
-        offset: u32,
-        alignment: u32,
-        prev_slot: bool,
-    };
-    const r0v0 = Layout{ .offset = 32, .alignment = 4, .prev_slot = true };
-    const r0v1 = Layout{ .offset = 4, .alignment = 4, .prev_slot = false };
-    const r0v2 = Layout{ .offset = 8, .alignment = 4, .prev_slot = false };
-    const r0v3 = Layout{ .offset = 32, .alignment = 4, .prev_slot = false };
-    const r1v0 = Layout{ .offset = 40, .alignment = 8, .prev_slot = true };
-    const r1v1 = Layout{ .offset = 24, .alignment = 8, .prev_slot = false };
-    const r1v2 = Layout{ .offset = 40, .alignment = 8, .prev_slot = false };
-    const param_layouts: [job_graph.job_fn.len][]const Layout = .{
-        &.{ r0v0, r0v1 },
-        &.{ r0v1, r0v2 },
-        &.{ r0v1, r1v0, r1v1 },
-        &.{ r0v2, r1v1, r0v3, r1v2 },
-    };
-    const bytes_per_slot = 48;
 
     try expectEqual( // the resource buffer length has the expected size
         epoch_slot_count * bytes_per_slot,
         job_graph.resource_buffer.len,
     );
+}
 
-    for (0..epoch_slot_count) |slot| {
+test "JobGraph preserves job parameter slice lengths" {
+    var job_graph: JobGraph(TestFnWrapper.graphBuildFn) = .{};
+    try job_graph.init(std.testing.allocator);
+    defer job_graph.deinit();
+
+    for (0..epoch_slot_count) |_| {
         for (0..job_graph.job_fn.len) |job_id| {
             const begin = job_graph.job_params_offsets[job_id];
             const end = job_graph.job_params_offsets[job_id + 1];
@@ -193,6 +140,19 @@ test "JobGraph()" {
                 param_layouts[job_id].len,
                 end - begin,
             );
+        }
+    }
+}
+
+test "JobGraph binds parameters to expected resource offsets and epoch slots" {
+    var job_graph: JobGraph(TestFnWrapper.graphBuildFn) = .{};
+    try job_graph.init(std.testing.allocator);
+    defer job_graph.deinit();
+
+    for (0..epoch_slot_count) |slot| {
+        for (0..job_graph.job_fn.len) |job_id| {
+            const begin = job_graph.job_params_offsets[job_id];
+            const end = job_graph.job_params_offsets[job_id + 1];
             for (begin..end, 0..) |param_offset, layout_index| {
                 // reconstruct the expected offset from hardcoded data
                 const layout = param_layouts[job_id][layout_index];
@@ -211,11 +171,39 @@ test "JobGraph()" {
                     @intFromPtr(&job_graph.resource_buffer[resource_offset]),
                     @intFromPtr(param),
                 );
+            }
+        }
+    }
+}
+
+test "JobGraph binds parameters with the required alignment" {
+    var job_graph: JobGraph(TestFnWrapper.graphBuildFn) = .{};
+    try job_graph.init(std.testing.allocator);
+    defer job_graph.deinit();
+
+    for (0..epoch_slot_count) |slot| {
+        for (0..job_graph.job_fn.len) |job_id| {
+            const begin = job_graph.job_params_offsets[job_id];
+            const end = job_graph.job_params_offsets[job_id + 1];
+            for (begin..end, 0..) |param_offset, layout_index| {
+                const layout = param_layouts[job_id][layout_index];
+
+                // retrieve the actual offset using the graphs intended mechanism
+                const params_per_slot = job_graph.job_params_offsets[job_graph.job_params_offsets.len - 1];
+                const param_index = slot * params_per_slot + param_offset;
+                const param = job_graph.job_params[param_index];
+
                 // the param address has the required alignment
                 try expect(@intFromPtr(param) % layout.alignment == 0);
             }
         }
     }
+}
+
+test "JobGraph repeats initial dependency counters for each epoch slot" {
+    var job_graph: JobGraph(TestFnWrapper.graphBuildFn) = .{};
+    try job_graph.init(std.testing.allocator);
+    defer job_graph.deinit();
 
     const expected_counters_sequence =
         job_graph.initial_dependency_counters ** epoch_slot_count;
@@ -225,3 +213,59 @@ test "JobGraph()" {
         &job_graph.dependency_counters,
     );
 }
+
+const TestFnWrapper = struct {
+    fn root(read_param: *const u32, write_param: *u32) !void {
+        _ = read_param;
+        _ = write_param;
+    }
+
+    fn fanOut(read_param: *const u32, write_param: *u32) !void {
+        _ = read_param;
+        _ = write_param;
+    }
+
+    fn fanOutWithCarry(read_param0: *const u32, read_param1: *const u64, write_param: *u64) !void {
+        _ = read_param0;
+        _ = read_param1;
+        _ = write_param;
+    }
+
+    fn fanIn(read_param0: *const u32, read_param1: *const u64, write_param0: *u32, write_param1: *u64) !void {
+        _ = read_param0;
+        _ = read_param1;
+        _ = write_param0;
+        _ = write_param1;
+    }
+
+    fn graphBuildFn(comptime builder: *JobGraphBuilder) !void {
+        const resource0_v0 = try builder.declareResource(u32);
+        const resource0_v1 = try graph_builder.declareJob(root, .{ resource0_v0, resource0_v0 });
+        const resource0_v2 = try graph_builder.declareJob(fanOut, .{ resource0_v1, resource0_v1 });
+        const resource1_v0 = try builder.declareResource(u64);
+        const resource1_v1 = try graph_builder.declareJob(fanOutWithCarry, .{ resource0_v1, resource1_v0, resource1_v0 });
+        const resource0_v3, const resource1_v2 = try graph_builder.declareJob(fanIn, .{ resource0_v2, resource1_v1, resource0_v2, resource1_v1 });
+        try graph_builder.declareResourceCarry(resource0_v3);
+        try graph_builder.declareResourceCarry(resource1_v2);
+    }
+};
+
+const Layout = struct {
+    offset: u32,
+    alignment: u32,
+    prev_slot: bool,
+};
+const r0v0 = Layout{ .offset = 32, .alignment = 4, .prev_slot = true };
+const r0v1 = Layout{ .offset = 4, .alignment = 4, .prev_slot = false };
+const r0v2 = Layout{ .offset = 8, .alignment = 4, .prev_slot = false };
+const r0v3 = Layout{ .offset = 32, .alignment = 4, .prev_slot = false };
+const r1v0 = Layout{ .offset = 40, .alignment = 8, .prev_slot = true };
+const r1v1 = Layout{ .offset = 24, .alignment = 8, .prev_slot = false };
+const r1v2 = Layout{ .offset = 40, .alignment = 8, .prev_slot = false };
+const param_layouts = [_][]const Layout{
+    &.{ r0v0, r0v1 },
+    &.{ r0v1, r0v2 },
+    &.{ r0v1, r1v0, r1v1 },
+    &.{ r0v2, r1v1, r0v3, r1v2 },
+};
+const bytes_per_slot = 48;
